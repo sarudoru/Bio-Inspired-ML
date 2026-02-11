@@ -48,7 +48,113 @@ def get_dataset(name, norm_method='global', flatten=True, eps=1e-10, verbose=Tru
     (otherwise the exact same feature values would get mapped differently between the train and test sets, which is not
     good).
     '''
-    pass
+    # Validate dataset name
+    name = name.lower()
+    if name not in ['mnist', 'cifar10']:
+        raise ValueError(f"Unsupported dataset: {name}. Supported options: 'mnist', 'cifar10'")
+    
+    # Validate normalization method
+    if norm_method not in ['global', 'center', 'none']:
+        raise ValueError(f"Unsupported normalization method: {norm_method}. Supported options: 'global', 'center', 'none'")
+    
+    # Load the appropriate dataset using TensorFlow Keras
+    if name == 'mnist':
+        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+    elif name == 'cifar10':
+        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
+        # CIFAR-10 labels come as shape (N, 1), flatten to (N,)
+        y_train = y_train.squeeze()
+        y_test = y_test.squeeze()
+    
+    if verbose:
+        print(f"Loaded {name.upper()} dataset")
+        print(f"  x_train shape: {x_train.shape}, dtype: {x_train.dtype}")
+        print(f"  y_train shape: {y_train.shape}, dtype: {y_train.dtype}")
+        print(f"  x_test shape: {x_test.shape}, dtype: {x_test.dtype}")
+        print(f"  y_test shape: {y_test.shape}, dtype: {y_test.dtype}")
+    
+    # Min-max normalize to [0, 1] range (images are originally 0-255 integers)
+    x_train = x_train.astype(np.float32) / 255.0
+    x_test = x_test.astype(np.float32) / 255.0
+    
+    if verbose:
+        print(f"\nAfter min-max normalization to [0, 1]:")
+        print(f"  x_train range: [{x_train.min():.4f}, {x_train.max():.4f}]")
+    
+    
+    # Apply normalization method
+    if norm_method == 'global':
+        # Compute mean and std for each channel globally across all training images
+        # Shape: (n_chans,) - one mean/std per channel
+        train_mean = np.mean(x_train, axis=(0, 1, 2))
+        train_std = np.std(x_train, axis=(0, 1, 2))
+        
+        if verbose:
+            print(f"\nGlobal standardization stats (computed from training set):")
+            print(f"  Mean per channel: {train_mean}")
+            print(f"  Std per channel: {train_std}")
+        
+        # Standardize: (x - mean) / (std + eps)
+        x_train = (x_train - train_mean) / (train_std + eps)
+        x_test = (x_test - train_mean) / (train_std + eps)
+        
+        if verbose:
+            print(f"\nAfter global standardization:")
+            print(f"  x_train mean: {np.mean(x_train):.6f}, std: {np.std(x_train):.6f}")
+            print(f"  x_test mean: {np.mean(x_test):.6f}, std: {np.std(x_test):.6f}")
+            
+    elif norm_method == 'center':
+        # Compute mean for each channel globally across all training images
+        train_mean = np.mean(x_train, axis=(0, 1, 2))
+        
+        if verbose:
+            print(f"\nCentering stats (computed from training set):")
+            print(f"  Mean per channel: {train_mean}")
+        
+        # Center: x - mean
+        x_train = x_train - train_mean
+        x_test = x_test - train_mean
+        
+        if verbose:
+            print(f"\nAfter centering:")
+            print(f"  x_train mean: {np.mean(x_train):.6f}")
+            print(f"  x_test mean: {np.mean(x_test):.6f}")
+    
+    else:  # norm_method == 'none'
+        if verbose:
+            print("\nNo additional normalization applied (only min-max to [0, 1])")
+    
+    # Optionally flatten the non-batch dimensions
+    if flatten:
+        # Get batch size and flatten all other dimensions
+        n_train = x_train.shape[0]
+        n_test = x_test.shape[0]
+        x_train = x_train.reshape(n_train, -1)
+        x_test = x_test.reshape(n_test, -1)
+        
+        if verbose:
+            print(f"\nAfter flattening:")
+            print(f"  x_train shape: {x_train.shape}")
+            print(f"  x_test shape: {x_test.shape}")
+    
+    # Convert to TensorFlow tensors with appropriate data types
+    x_train = tf.convert_to_tensor(x_train, dtype=tf.float32)
+    y_train = tf.convert_to_tensor(y_train, dtype=tf.int32)
+    x_test = tf.convert_to_tensor(x_test, dtype=tf.float32)
+    y_test = tf.convert_to_tensor(y_test, dtype=tf.int32)
+    
+    if verbose:
+        print(f"\nFinal tensor shapes and dtypes:")
+        print(f"  x_train: {x_train.shape}, {x_train.dtype}")
+        print(f"  y_train: {y_train.shape}, {y_train.dtype}")
+        print(f"  x_test: {x_test.shape}, {x_test.dtype}")
+        print(f"  y_test: {y_test.shape}, {y_test.dtype}")
+    
+    return x_train, y_train, x_test, y_test
+
+
+
+    
 
 
 def train_val_split(x_train, y_train, prop_val=0.1):
@@ -76,7 +182,22 @@ def train_val_split(x_train, y_train, prop_val=0.1):
     y_val: tf.int32 tensor. shape=(N_val,)
         Validation set labels
     '''
-    pass
+    # Get total number of samples
+    n_total = x_train.shape[0]
+    
+    # Compute number of validation samples from proportion
+    n_val = int(n_total * prop_val)
+    
+    # Compute number of training samples (remaining samples)
+    n_train_new = n_total - n_val
+    
+    # Split the data: first n_train_new samples for training, last n_val samples for validation
+    x_train_new = x_train[:n_train_new]
+    y_train_new = y_train[:n_train_new]
+    x_val = x_train[n_train_new:]
+    y_val = y_train[n_train_new:]
+    
+    return x_train_new, y_train_new, x_val, y_val
 
 
 def preprocess_nonlinear(x, n=4.0):
