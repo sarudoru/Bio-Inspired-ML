@@ -1,6 +1,6 @@
 '''layers.py
 Neural network layers (e.g. Dense, Dropout, etc.) implemented with the low-level TensorFlow API.
-YOUR NAMES HERE
+Jacob, Sardor and Saad
 CS 443: Bio-Inspired Learning
 '''
 import tensorflow as tf
@@ -34,6 +34,10 @@ class Layer:
         self.b = None
         self.units = None
         self.output_shape = None
+        self.layer_name = layer_name
+        self.activation = activation
+        self.prev_layer_or_block = prev_layer_or_block
+        self.do_group_norm = do_group_norm
 
         # We need to make this tf.Variable so this boolean gets added to the static graph when net compiled. Otherwise,
         # bool cannot be updated during training when using @tf.function
@@ -46,35 +50,35 @@ class Layer:
 
     def get_name(self):
         '''Returns the human-readable string name of the current layer.'''
-        pass
+        return self.layer_name
 
     def get_act_fun_name(self):
         '''Returns the activation function string name used in the current layer.'''
-        pass
+        return self.activation
 
     def get_prev_layer_or_block(self):
         '''Returns a reference to the Layer object that represents the layer below the current one.'''
-        pass
+        return self.prev_layer_or_block
 
     def get_wts(self):
         '''Returns the weights of the current layer'''
-        pass
+        return self.wts
 
     def get_b(self):
         '''Returns the bias of the current layer'''
-        pass
+        return self.b
 
     def has_wts(self):
         '''Does the current layer store weights? By default, we assume it does not (i.e. always return False).'''
-        pass
+        return False
 
     def get_num_units(self):
         '''Returns the number of units (neurons) in the layer.'''
-        pass
+        return self.units
 
     def set_activation_function(self, act_fun_str):
         '''Sets the activation function to the string `act_fun_str`.'''
-        pass
+        self.activation = act_fun_str
 
     def set_tanh_beta(self, beta):
         '''Sets the β hyperparameter in the tanh activation function to the value `beta`.
@@ -96,7 +100,7 @@ class Layer:
 
         HINT: Check out the instance variables above...
         '''
-        pass
+        return self.is_training
 
     def set_mode(self, is_training):
         '''Informs the layer whether the neural network is currently training. Used in Dropout and some other layer
@@ -118,7 +122,7 @@ class Layer:
         Use the `assign` method on the instance variable to update the training state.
         This method should be a one-liner.
         '''
-        pass
+        self.is_training.assign(is_training)
 
     def init_params(self, input_shape):
         '''Initializes the Layer's parameters (wts + bias), if it has any.
@@ -158,7 +162,14 @@ class Layer:
         - Unless instructed otherwise, you may use the activation function implementations provided by the low level
         TensorFlow API here (You already implemented them in CS343 so you have earned it :)
         '''
-        pass
+        if self.activation == 'relu':
+            return tf.nn.relu(net_in)
+        elif self.activation == 'linear':
+            return net_in
+        elif self.activation == 'softmax':
+            return tf.nn.softmax(net_in)
+        else:
+            raise ValueError(f'Unsupported activation function: {self.activation}')
 
     def __call__(self, x):
         '''Do a forward pass thru the layer with mini-batch `x`.
@@ -186,7 +197,11 @@ class Layer:
         set it to the shape of the layer's activation, represented as a Python list. You can convert something into a
         Python list by calling the `list` function — e.g. `list(blah)`.
         '''
-        pass
+        net_in = self.compute_net_input(x)
+        net_act = self.compute_net_activation(net_in)
+        if self.output_shape is None:
+            self.output_shape = list(net_act.shape)
+        return net_act
 
     def get_params(self):
         '''Gets a list of all the parameters learned by the layer (wts, bias, etc.).
@@ -289,11 +304,15 @@ class Dense(Layer):
         TODO: Set the parameters as instance variables. Call the superclass constructor to handle setting instance vars
         the child has in common with the parent class.
         '''
-        pass
+        super().__init__(name, activation, prev_layer_or_block, do_group_norm)
+        self.name = name
+        self.units = units
+        self.wt_scale = wt_scale
+        self.wt_init = wt_init
 
     def has_wts(self):
         '''Returns whether the Dense layer has weights. This is always true so always return... :)'''
-        pass
+        return True
 
     def init_params(self, input_shape):
         '''Initializes the Dense layer's weights and biases.
@@ -311,7 +330,9 @@ class Dense(Layer):
         element of input_shape. This may sound silly, but doing this will prevent you from having to modify this method
         later in the semester :)
         '''
-        pass
+        M = input_shape[-1]
+        self.wts = tf.Variable(tf.random.normal(shape=(M, self.units), stddev=self.wt_scale), trainable=True)
+        self.b = tf.Variable(tf.zeros(shape=(self.units,)), trainable=True)
 
     def compute_net_input(self, x):
         '''Computes the net input for the current Dense layer.
@@ -329,7 +350,12 @@ class Dense(Layer):
         NOTE: This layer uses lazy initialization. This means that if the wts are currently None when we enter this
         method, we should call `init_params` to initialize the parameters!
         '''
-        pass
+        if self.wts is None:
+            self.init_params(x.shape)
+        net_in = tf.matmul(x, self.wts) + self.b
+        if self.do_group_norm:
+            net_in = self.compute_group_norm(net_in)
+        return net_in
 
     def compute_group_norm(self, net_in, eps=0.001):
         '''Computes group normalization for the input tensor. Group normalization normalizes the activations among
@@ -383,7 +409,10 @@ class Dropout(Layer):
         TODO: Set the parameters as instance variables. Call the superclass constructor to handle setting instance vars
         the child has in common with the parent class.
         '''
-        pass
+        self.name = name
+        self.rate = rate
+        self.prev_layer_or_block = prev_layer_or_block
+        super().__init__(name, 'linear', prev_layer_or_block)
 
     def compute_net_input(self, x):
         '''Computes the net input for the current Dropout layer.
@@ -405,7 +434,11 @@ class Dropout(Layer):
         axes when working with shapes. For example, blah.shape[2] is considered hard coding because blah may not always
         have an axis 2.
         '''
-        pass
+        if self.is_training:
+            mask = tf.random.uniform(shape=tf.shape(x)) > self.rate
+            return x * tf.cast(mask, dtype=tf.float32) / (1 - self.rate)
+        else:
+            return x
 
     def __str__(self):
         '''This layer's "ToString" method. Feel free to customize if you want to make the layer description fancy,
@@ -432,7 +465,9 @@ class Flatten(Layer):
         TODO: Set the parameters as instance variables. Call the superclass constructor to handle setting instance vars
         the child has in common with the parent class.
         '''
-        pass
+        self.name = name
+        self.prev_layer_or_block = prev_layer_or_block
+        super().__init__(name, 'linear', prev_layer_or_block)
 
     def compute_net_input(self, x):
         '''Computes the net input for the current Flatten layer.
@@ -453,7 +488,9 @@ class Flatten(Layer):
         - While the shape of the input `x` will usually be 4D, it is better to not hard-code this just in case.
         For example, do NOT do compute the number of non-batch inputs as x.shape[1]*x.shape[2]*x.shape[3]
         '''
-        pass
+        B = tf.shape(x)[0]
+        return tf.reshape(x, [B, -1])
+
 
     def __str__(self):
         '''This layer's "ToString" method. Feel free to customize if you want to make the layer description fancy,
