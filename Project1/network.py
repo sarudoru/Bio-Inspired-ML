@@ -1,6 +1,6 @@
 '''network.py
 Deep neural network core functionality implemented with the low-level TensorFlow API.
-YOUR NAMES HERE
+Jacob Petty, Sardor Nodirov, and Saad Khan
 CS 443: Bio-Inspired Learning
 '''
 import time
@@ -379,21 +379,21 @@ class DeepNetwork:
         val_loss_hist = []
         val_acc_hist = []
 
-        N = len(x)
+        N = int(x.shape[0])
         num_batches = N // batch_size
         if num_batches < 1:
             num_batches = 1
 
         self.set_layer_training_mode(is_training=True)
 
-        rng = tf.random.Generator.from_seed(0)
+        total_start = time.time()
 
         for e in range(max_epochs):
             epoch_start = time.time()
 
             epoch_loss = 0
             for b in range(num_batches):
-                batch_indices = rng.uniform(shape=(batch_size,), minval=0, maxval=N, dtype=tf.int32)
+                batch_indices = tf.random.uniform(shape=(batch_size,), minval=0, maxval=N, dtype=tf.int32)
                 x_batch = tf.gather(x, batch_indices)
                 y_batch = tf.gather(y, batch_indices)
 
@@ -405,25 +405,26 @@ class DeepNetwork:
 
             epoch_time = time.time() - epoch_start
 
-            if verbose:
-                print(f'Epoch {e+1}/{max_epochs} ({epoch_time}s)')
-
+            # Validation check
+            val_acc = None
+            val_loss = None
             if x_val is not None and y_val is not None and (e + 1) % val_every == 0:
                 val_acc, val_loss = self.evaluate(x_val, y_val)
                 val_loss_hist.append(float(val_loss))
                 val_acc_hist.append(float(val_acc))
-
-                if verbose:
-                    print(f' Training loss: {avg_epoch_loss} / Validation loss: {val_loss} / Validation accuracy: {val_acc}')
-
                 self.set_layer_training_mode(is_training=True)
 
+            # Print output matching expected format
             if verbose:
-                print()
+                val_acc_str = f'{val_acc:.4f}' if val_acc is not None else 'N/A'
+                val_loss_str = f'{val_loss:.3f}' if val_loss is not None else 'N/A'
+                print(f'Epoch {e}/{max_epochs-1}, Training loss {float(avg_epoch_loss):.3f}, Val loss {val_loss_str}, Val acc {val_acc_str}')
+                print(f'Epoch {e} took: {epoch_time:.1f} secs')
 
-        e = max_epochs
-        print(f'Finished training after {e} epochs!')
-        return train_loss_hist, val_loss_hist, val_acc_hist, e
+        total_time = time.time() - total_start
+        print(f'Finished training after {max_epochs} epochs!')
+        print(f'Training took: {total_time:.2f} secs')
+        return train_loss_hist, val_loss_hist, val_acc_hist, max_epochs
 
     def evaluate(self, x, y, batch_sz=64):
         '''Evaluates the accuracy and loss on the data `x` and labels `y`. Breaks the dataset into mini-batches for you
