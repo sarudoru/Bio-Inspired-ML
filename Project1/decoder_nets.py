@@ -34,7 +34,7 @@ class LinearDecoder(network.DeepNetwork):
         2. The output layer for ANY `DeepNetwork` here and going forward should be assigned to the variable
         self.output_layer.
         '''
-        super().__init__(input_feats_shape, C)
+        super().__init__(input_feats_shape)
         self.output_layer = Dense('Output Layer', C, activation='softmax', prev_layer_or_block=None)
         
 
