@@ -1,6 +1,6 @@
 '''image_datasets.py
 Functions to load and preprocess image datasets
-YOUR NAMES HERE
+Jacob Petty, Sardor Nodirov, and Saad Khan
 CS 443: Bio-Inspired Machine Learning
 Project 1: Hebbian Learning
 '''

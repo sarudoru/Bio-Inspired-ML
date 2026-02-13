@@ -1,6 +1,6 @@
 '''layers.py
 Neural network layers (e.g. Dense, Dropout, etc.) implemented with the low-level TensorFlow API.
-Jacob, Sardor and Saad
+Jacob Petty, Sardor Nodirov, and Saad Khan
 CS 443: Bio-Inspired Learning
 '''
 import tensorflow as tf

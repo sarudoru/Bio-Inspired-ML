@@ -1,6 +1,6 @@
 '''hebb_net.py
 Artificial neural networks that decoder signals encoding in the activations of the Hebbian network.
-YOUR NAMES HERE
+Jacob Petty, Sardor Nodirov, and Saad Khan
 CS 443: Bio-Inspired Machine Learning
 Project 1: Hebbian Learning
 '''
@@ -34,7 +34,9 @@ class LinearDecoder(network.DeepNetwork):
         2. The output layer for ANY `DeepNetwork` here and going forward should be assigned to the variable
         self.output_layer.
         '''
-        pass
+        super().__init__(input_feats_shape, C)
+        self.output_layer = Dense('Output Layer', C, activation='softmax', prev_layer_or_block=None)
+        
 
     def __call__(self, x):
         '''Do a forward pass thru the network with mini-batch `x`.
@@ -49,7 +51,7 @@ class LinearDecoder(network.DeepNetwork):
         tf.float32 tensor. shape=(B, M).
             The output layer activation computed on the current mini-batch.
         '''
-        pass
+        return self.output_layer(x)
 
 class NonlinearDecoder(network.DeepNetwork):
     '''Nonlinear Decoder network proposed by Krotov & Hopfield with the following architecture:
