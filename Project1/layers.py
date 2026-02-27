@@ -42,6 +42,7 @@ class Layer:
         # We need to make this tf.Variable so this boolean gets added to the static graph when net compiled. Otherwise,
         # bool cannot be updated during training when using @tf.function
         self.is_training = tf.Variable(False, trainable=False)
+        self.tanh_beta = 1.0
 
         # The following relates to features you will implement later in the semester. Ignore for now.
         self.num_groups = None
@@ -86,7 +87,7 @@ class Layer:
         (Week 3)
         NOTE: Ignore until instructed otherwise.
         '''
-        pass
+        self.tanh_beta = beta
 
     def set_num_groups(self, groups):
         '''Sets the number of normalization groups to use within the layer for group normalization.
@@ -168,6 +169,8 @@ class Layer:
             return net_in
         elif self.activation == 'softmax':
             return tf.nn.softmax(net_in)
+        elif self.activation == 'tanh':
+            return tf.nn.tanh(self.tanh_beta * net_in)
         else:
             raise ValueError(f'Unsupported activation function: {self.activation}')
 
@@ -331,8 +334,8 @@ class Dense(Layer):
         later in the semester :)
         '''
         M = input_shape[-1]
-        self.wts = tf.Variable(tf.random.normal(shape=(M, self.units), stddev=self.wt_scale), trainable=True)
-        self.b = tf.Variable(tf.zeros(shape=(self.units,)), trainable=True)
+        self.wts = tf.Variable(tf.random.normal(shape=(M, self.units), stddev=self.wt_scale), trainable=True, name="wts")
+        self.b = tf.Variable(tf.zeros(shape=(self.units,)), trainable=True, name="bias")
 
     def compute_net_input(self, x):
         '''Computes the net input for the current Dense layer.
