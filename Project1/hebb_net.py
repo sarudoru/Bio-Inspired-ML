@@ -52,6 +52,7 @@ class HebbNet:
         '''
         self.k = k
         self.inhib_value = inhib_value
+        self.saved_wts_path = saved_wts_path
 
         if load_wts:
             self.wts = tf.constant(np.load(saved_wts_path), dtype=tf.float32)
@@ -215,16 +216,29 @@ class HebbNet:
         if plot_wts_live:
             fig = plt.figure(figsize=fig_sz)
 
-        # This is done every print_every epochs
-        if plot_wts_live:
-            draw_grid_image(tf.transpose(self.wts), n_wts_plotted[0], n_wts_plotted[1],
-                            title=f'Net receptive fields (Epoch {e})',
-                            sample_dims=ds_feat_shape)
-            display.clear_output(wait=True)
-            display.display(fig)
-            time.sleep(0.001)
-        else:
-            print(f'Starting epoch {e}/{epochs}')
+        for e in range(1, epochs + 1):
+            # sampling without replacement
+            indices = tf.random.shuffle(tf.range(N))
+            x_shuffled = tf.gather(x, indices)
+
+            # training
+            for i in range(0, N, mini_batch_sz):
+                x_batch = x_shuffled[i:i + mini_batch_sz]
+                net_in = self.net_in(x_batch)
+                net_act_vals = self.net_act(net_in)
+                self.update_wts(x_batch, net_in, net_act_vals, lr)
+
+            # every print_every epochs
+            if e % print_every == 0:
+                if plot_wts_live:
+                    draw_grid_image(tf.transpose(self.wts), n_wts_plotted[0], n_wts_plotted[1],
+                                    title=f'Net receptive fields (Epoch {e})',
+                                    sample_dims=ds_feat_shape)
+                    display.clear_output(wait=True)
+                    display.display(fig)
+                    time.sleep(0.001)
+                else:
+                    print(f'Starting epoch {e}/{epochs}')
 
         # This happens at the end
         if save_wts:
