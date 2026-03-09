@@ -12,7 +12,6 @@ from IPython import display
 
 from viz import draw_grid_image
 
-
 class HebbNet:
     '''Single layer bio-inspired neural network in which neurons compete with each other and learning occurs via a
     competitive variant of a Hebbian learning rule (Oja's Rule).
@@ -216,7 +215,8 @@ class HebbNet:
         if plot_wts_live:
             fig = plt.figure(figsize=fig_sz)
 
-        for e in range(1, epochs + 1):
+        for e in range(epochs):
+
             # sampling without replacement
             indices = tf.random.shuffle(tf.range(N))
             x_shuffled = tf.gather(x, indices)
@@ -229,7 +229,7 @@ class HebbNet:
                 self.update_wts(x_batch, net_in, net_act_vals, lr)
 
             # every print_every epochs
-            if e % print_every == 0:
+            if (e + 1) % print_every == 0:
                 if plot_wts_live:
                     draw_grid_image(tf.transpose(self.wts), n_wts_plotted[0], n_wts_plotted[1],
                                     title=f'Net receptive fields (Epoch {e})',
@@ -237,8 +237,7 @@ class HebbNet:
                     display.clear_output(wait=True)
                     display.display(fig)
                     time.sleep(0.001)
-                else:
-                    print(f'Starting epoch {e}/{epochs}')
+                print(f'Epoch {e+1}/{epochs}')
 
         # This happens at the end
         if save_wts:

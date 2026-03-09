@@ -152,11 +152,6 @@ def get_dataset(name, norm_method='global', flatten=True, eps=1e-10, verbose=Tru
     
     return x_train, y_train, x_test, y_test
 
-
-
-    
-
-
 def train_val_split(x_train, y_train, prop_val=0.1):
     '''Subdivides the provided training set into a (smaller) training set and a validation set, composed of the last
     `prop_val` proportion of samples in x_train/y_train.
@@ -199,7 +194,6 @@ def train_val_split(x_train, y_train, prop_val=0.1):
     
     return x_train_new, y_train_new, x_val, y_val
 
-
 def preprocess_nonlinear(x, n=4.0):
     '''Preprocessor for the nonlinear decoder input data. Applies the ReLU function raised to the `n` power.
 
@@ -217,9 +211,8 @@ def preprocess_nonlinear(x, n=4.0):
     tf.float32 tensor. shape=(N, M).
         Data transformed by ReLU raised to the `n` power.
     '''
-    pass
-
-
+    return tf.pow(tf.nn.relu(x), n)
+    
 def occlude_images(x, region='top', image_dims=(28, 28, 1)):
     '''Occludes/deletes the content in half of each image passed in.
 

@@ -27,7 +27,6 @@ class DeepNetwork:
         self.loss_name = None
         self.output_layer = None
         self.all_net_params = []
-
         self.input_feats_shape = input_feats_shape
 
     def compile(self, loss='cross_entropy', lr=1e-3, print_summary=True):
@@ -316,7 +315,7 @@ class DeepNetwork:
         acc = self.accuracy(y_batch, y_pred)
         return acc, loss
 
-    def fit(self, x, y, x_val=None, y_val=None, batch_size=128, max_epochs=10000, val_every=1, print_every=10,
+    def fit(self, x, y, x_val=None, y_val=None, batch_size=128, max_epochs=10000, val_every=1,
             verbose=True, patience=999, lr_patience=999, lr_decay_factor=0.5, lr_max_decays=12):
         '''Trains the neural network on the training samples `x` (and associated int-coded labels `y`).
 
@@ -395,8 +394,10 @@ class DeepNetwork:
         train_loss_hist = []
         val_loss_hist = []
         val_acc_hist = []
-        recent_val_losses = [] 
-        rolling_val_losses = []
+
+        early_stopping_recent_val_losses = [] 
+        lr_decay_recent_rolling_val_losses = []
+
         num_decays = 0
 
         N = int(x.shape[0])
@@ -408,12 +409,14 @@ class DeepNetwork:
 
         total_start = time.time()
 
+        rng = np.random.default_rng(0)
+
         for e in range(max_epochs):
             epoch_start = time.time()
 
             epoch_loss = 0
             for b in range(num_batches):
-                batch_indices = tf.random.uniform(shape=(batch_size,), minval=0, maxval=N, dtype=tf.int32)
+                batch_indices = rng.integers(low=0, high=N, size=batch_size)
                 x_batch = tf.gather(x, batch_indices)
                 y_batch = tf.gather(y, batch_indices)
 
@@ -425,9 +428,10 @@ class DeepNetwork:
 
             epoch_time = time.time() - epoch_start
 
-            # Validation check
             val_acc = None
             val_loss = None
+
+            # Validation check
             if x_val is not None and y_val is not None and (e + 1) % val_every == 0:
                 val_acc, val_loss = self.evaluate(x_val, y_val)
                 val_loss_hist.append(float(val_loss))
@@ -435,28 +439,33 @@ class DeepNetwork:
                 self.set_layer_training_mode(is_training=True)
                 
                 # Check early stopping
-                recent_val_losses, should_stop = self.early_stopping(recent_val_losses, float(val_loss), patience)
+                early_stopping_recent_val_losses, should_stop = self.early_stopping(early_stopping_recent_val_losses, val_loss, patience)
 
                 if should_stop:
                     if verbose:
-                        print(f'Early stopping triggered at epoch {e}')
+                        print(f'Epoch {e+1}/{max_epochs}, Training loss {float(avg_epoch_loss):.3f}, Val loss {val_loss:.3f}, Val acc {val_acc:.4f}. Epoch took: {epoch_time:.1f} secs')
+                        print(f'Early stopping triggered at epoch {e+1}')
                     break
+                
+                # Check lr decay
+                lr_decay_recent_rolling_val_losses, should_decay = self.early_stopping(lr_decay_recent_rolling_val_losses, val_loss, lr_patience)
 
-                rolling_val_losses, should_decay = self.early_stopping(rolling_val_losses, float(val_loss), lr_patience)
                 if should_decay and num_decays < lr_max_decays:
-                    self.lr_step_decay(lr_decay_factor)
+                    self.lr_step_decay(lr_decay_factor, verbose=verbose)
                     num_decays += 1
 
             # Print output matching expected format
             if verbose:
                 val_acc_str = f'{val_acc:.4f}' if val_acc is not None else 'N/A'
                 val_loss_str = f'{val_loss:.3f}' if val_loss is not None else 'N/A'
-                print(f'Epoch {e}/{max_epochs-1}, Training loss {float(avg_epoch_loss):.3f}, Val loss {val_loss_str}, Val acc {val_acc_str}')
-                print(f'Epoch {e} took: {epoch_time:.1f} secs')
+                print(f'Epoch {e+1}/{max_epochs}, Training loss {float(avg_epoch_loss):.3f}, Val loss {val_loss_str}, Val acc {val_acc_str}. Epoch took: {epoch_time:.1f} secs')
 
         total_time = time.time() - total_start
-        print(f'Training finished after {e} epochs in {total_time:.2f} seconds')
-        print(f'Learning rate was decayed {num_decays} times.')
+
+        if verbose:
+            print(f'Training finished after {e+1} epochs in {total_time:.2f} seconds')
+            print(f'The learning rate was decayed {num_decays} times.')
+            
         return train_loss_hist, val_loss_hist, val_acc_hist, e
 
     def evaluate(self, x, y, batch_sz=64):
@@ -575,7 +584,7 @@ class DeepNetwork:
         
         return recent_val_losses, stop
 
-    def lr_step_decay(self, lr_decay_rate):
+    def lr_step_decay(self, lr_decay_rate, verbose):
         '''Adjusts the learning rate used by the optimizer to be a proportion `lr_decay_rate` of the current learning
         rate.
 
@@ -595,13 +604,10 @@ class DeepNetwork:
         1. Update the optimizer's learning rate.
         2. Always print out the optimizer's learning rate before and after the change.
         '''
-        # Print current learning rate
         current_lr = float(self.opt.learning_rate)
-        print(f'Learning rate before decay: {current_lr}')
         
-        # Update learning rate
         new_lr = current_lr * lr_decay_rate
         self.opt.learning_rate = new_lr
         
-        # Print new learning rate
-        print(f'Learning rate after decay: {float(self.opt.learning_rate)}')
+        if verbose:
+            print(f'Learning rate before decay: {current_lr} --> Learning rate after decay: {float(self.opt.learning_rate)}')

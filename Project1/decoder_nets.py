@@ -6,10 +6,10 @@ Project 1: Hebbian Learning
 '''
 import tensorflow as tf
 
-import network
+from network import DeepNetwork
 from layers import Dense
 
-class LinearDecoder(network.DeepNetwork):
+class LinearDecoder(DeepNetwork):
     '''Linear Decoder network with the following architecture:
 
     Dense output layer (softmax activation).
@@ -53,7 +53,7 @@ class LinearDecoder(network.DeepNetwork):
         '''
         return self.output_layer(x)
 
-class NonlinearDecoder(network.DeepNetwork):
+class NonlinearDecoder(DeepNetwork):
     '''Nonlinear Decoder network proposed by Krotov & Hopfield with the following architecture:
 
     Dense output layer (tanh activation).

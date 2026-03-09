@@ -274,7 +274,6 @@ class Layer:
         if not self.do_group_norm:
             return
 
-
 class Dense(Layer):
     '''Neural network layer that uses Dense net input.'''
     def __init__(self, name, units, activation='relu', wt_scale=1e-3, prev_layer_or_block=None, wt_init='normal',
@@ -391,7 +390,6 @@ class Dense(Layer):
         '''
         return f'Dense layer output({self.layer_name}) shape: {self.output_shape}'
 
-
 class Dropout(Layer):
     '''A dropout layer that nixes/zeros out a proportion of the net input signals.'''
     def __init__(self, name, rate, prev_layer_or_block=None):
@@ -448,7 +446,6 @@ class Dropout(Layer):
         but this method is provided to you. You should not need to modify it.
         '''
         return f'Dropout layer output({self.layer_name}) shape: {self.output_shape}'
-
 
 class Flatten(Layer):
     '''A flatten layer that flattens the non-batch dimensions of the input signal.'''
