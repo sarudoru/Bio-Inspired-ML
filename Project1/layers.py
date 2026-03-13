@@ -307,7 +307,6 @@ class Dense(Layer):
         the child has in common with the parent class.
         '''
         super().__init__(name, activation, prev_layer_or_block, do_group_norm)
-        self.name = name
         self.units = units
         self.wt_scale = wt_scale
         self.wt_init = wt_init
@@ -410,10 +409,8 @@ class Dropout(Layer):
         TODO: Set the parameters as instance variables. Call the superclass constructor to handle setting instance vars
         the child has in common with the parent class.
         '''
-        self.name = name
+        super().__init__(name, 'linear', prev_layer_or_block=prev_layer_or_block)
         self.rate = rate
-        self.prev_layer_or_block = prev_layer_or_block
-        super().__init__(name, 'linear', prev_layer_or_block)
 
     def compute_net_input(self, x):
         '''Computes the net input for the current Dropout layer.
@@ -465,9 +462,7 @@ class Flatten(Layer):
         TODO: Set the parameters as instance variables. Call the superclass constructor to handle setting instance vars
         the child has in common with the parent class.
         '''
-        self.name = name
-        self.prev_layer_or_block = prev_layer_or_block
-        super().__init__(name, 'linear', prev_layer_or_block)
+        super().__init__(name, 'linear', prev_layer_or_block=prev_layer_or_block)
 
     def compute_net_input(self, x):
         '''Computes the net input for the current Flatten layer.
