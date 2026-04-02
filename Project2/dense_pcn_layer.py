@@ -207,7 +207,7 @@ class InputPCNLayer(PCNLayer):
         tf.constant. tf.float32s. shape=(B, M)
             The occlusion mask for the current mini-batch of data.
         '''
-        pass
+        self.mask = mask
 
     def update_state(self):
         '''Updates the state in the input layer based on predictive feedback from the PCNLayer above.
@@ -230,6 +230,9 @@ class InputPCNLayer(PCNLayer):
             predicted_input = next_state @ tf.transpose(next_weights)
 
             error = self.state - predicted_input
+            
+            if self.mask is not None:
+                error = error * (1.0 - self.mask)
 
             self.state = self.state - self.gamma_lr * error
 
