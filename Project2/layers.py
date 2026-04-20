@@ -94,7 +94,7 @@ class Layer:
 
         (Ignore until later in the semester)
         '''
-        pass
+        self.num_groups = groups
 
     def get_mode(self):
         '''Returns whether the Layer is in a training state.
@@ -201,6 +201,10 @@ class Layer:
         Python list by calling the `list` function — e.g. `list(blah)`.
         '''
         net_in = self.compute_net_input(x)
+        
+        if self.do_group_norm and self.gn_gain is not None:
+            net_in = self.compute_group_norm(net_in)
+            
         net_act = self.compute_net_activation(net_in)
         if self.output_shape is None:
             self.output_shape = list(net_act.shape)
@@ -236,7 +240,15 @@ class Layer:
         float.
             The Kaiming gain.
         '''
-        pass
+        if self.activation == 'relu':
+            return tf.sqrt(2.0)
+        elif self.activation == 'tanh':
+            return 5.0 / 3.0
+        elif self.activation == 'linear' or self.activation == 'softmax':
+            return 1.0
+        else:
+            # Default fallback
+            return 1.0
 
     def is_doing_groupnorm(self):
         '''Returns whether the current layer is using group normalization.
@@ -248,7 +260,7 @@ class Layer:
         bool.
             True if the layer has batch normalization turned on, False otherwise.
         '''
-        pass
+        return self.do_group_norm
 
     def compute_group_norm(self, net_in, eps=0.001):
         '''Computes the group normalization based on on the net input `net_in`.
@@ -273,6 +285,14 @@ class Layer:
         '''
         if not self.do_group_norm:
             return
+        
+        # Only initialize if the layer has units (e.g. not Flatten or Dropout)
+        if self.units is not None:
+            self.gn_gain = tf.Variable(tf.ones([self.units]), trainable=True, name="gn_gain")
+            self.gn_bias = tf.Variable(tf.zeros([self.units]), trainable=True, name="gn_bias")
+            
+            # Turn off the ordinary bias
+            self.b = tf.Variable(0.0, trainable=False, name="bias_disabled")
 
 class Dense(Layer):
     '''Neural network layer that uses Dense net input.'''
@@ -332,7 +352,16 @@ class Dense(Layer):
         later in the semester :)
         '''
         M = input_shape[-1]
-        self.wts = tf.Variable(tf.random.normal(shape=(M, self.units), stddev=self.wt_scale), trainable=True, name="wts")
+        
+        if self.wt_init == 'he':
+            # He/Kaiming initialization: std = gain / sqrt(fan_in)
+            gain = self.get_kaiming_gain()
+            wt_std = gain / tf.sqrt(tf.cast(M, tf.float32))
+        else:
+            # Normal initialization with user-specified scale
+            wt_std = self.wt_scale
+            
+        self.wts = tf.Variable(tf.random.normal(shape=(M, self.units), stddev=wt_std), trainable=True, name="wts")
         self.b = tf.Variable(tf.zeros(shape=(self.units,)), trainable=True, name="bias")
 
     def compute_net_input(self, x):
@@ -354,8 +383,6 @@ class Dense(Layer):
         if self.wts is None:
             self.init_params(x.shape)
         net_in = tf.matmul(x, self.wts) + self.b
-        if self.do_group_norm:
-            net_in = self.compute_group_norm(net_in)
         return net_in
 
     def compute_group_norm(self, net_in, eps=0.001):
@@ -382,7 +409,35 @@ class Dense(Layer):
             The normalized tensor with the same shape as the input tensor.
         '''
         B, H = net_in.shape
+                # Set default number of groups if not specified by the user
+        if self.num_groups is None:
+            # Divide by 8, rounded, ensure at least 1 group
+            self.num_groups = max(1, round(H / 8))
 
+        # Compute the number of channels per group
+        # Ensure H is divisible by num_groups to avoid errors, or use floor division
+        group_size = H // self.num_groups
+
+        # Reshape from (B, H) to (B, num_groups, group_size)
+        x = tf.reshape(net_in, [B, self.num_groups, group_size])
+
+        # Compute mean and variance along the last axis (within each group)
+        mean = tf.reduce_mean(x, axis=-1, keepdims=True)
+        var = tf.reduce_mean(tf.math.squared_difference(x, mean), axis=-1, keepdims=True)
+
+        # Normalize: (x - mean) / sqrt(var + eps)
+        x_norm = (x - mean) / (tf.sqrt(var) + eps)
+
+        # Reshape back to original shape (B, H)
+        x_norm = tf.reshape(x_norm, [B, H])
+
+        # Apply scaling and shifting (assuming gn_gain and gn_bias are initialized in init_groupnorm_params)
+        if self.gn_gain is None or self.gn_bias is None:
+            # Fallback if params not initialized yet (shouldn't happen in normal flow)
+            return x_norm
+            
+        return x_norm * self.gn_gain + self.gn_bias
+    
     def __str__(self):
         '''This layer's "ToString" method. Feel free to customize if you want to make the layer description fancy,
         but this method is provided to you. You should not need to modify it.

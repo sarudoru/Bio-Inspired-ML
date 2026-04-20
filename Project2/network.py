@@ -119,7 +119,8 @@ class DeepNetwork:
         TODO: Starting with the output layer, traverse the net backward, calling the appropriate method to
         initialize the group norm parameters in each network layer. Model this process around the summary method.
         '''
-        pass
+        for layer in self.layers:
+            layer.init_groupnorm_params()
 
     def get_all_params(self, wts_only=False):
         '''Traverses the network backward from the output layer to compile a list of all trainable network paramters.
@@ -262,6 +263,7 @@ class DeepNetwork:
         grads = tape.gradient(loss, self.all_net_params)
         self.opt.apply_gradients(zip(grads, self.all_net_params))
 
+    @tf.function(jit_compile=True)
     def train_step(self, x_batch, y_batch):
         '''Completely process a single mini-batch of data during training. This includes:
         1. Performing a forward pass of the data through the entire network.
@@ -288,6 +290,7 @@ class DeepNetwork:
         self.update_params(tape, loss)
         return loss
 
+    @tf.function(jit_compile=True)
     def test_step(self, x_batch, y_batch):
         '''Completely process a single mini-batch of data during test/validation time. This includes:
         1. Performing a forward pass of the data through the entire network.
